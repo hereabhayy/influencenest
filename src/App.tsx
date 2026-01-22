@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import emailjs from '@emailjs/browser'
 import './App.css'
 
 function App() {
@@ -292,30 +293,24 @@ function App() {
                 e.preventDefault()
                 const form = e.currentTarget
                 const formData = new FormData(form)
-                const payload = {
-                  name: formData.get('name'),
-                  email: formData.get('email'),
-                  company: formData.get('company'),
-                  budget: formData.get('budget'),
-                  message: formData.get('message'),
-                }
-                fetch('http://localhost:4000/api/contact', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(payload),
-                })
-                  .then((res) => res.json())
-                  .then((data) => {
-                    if (data.ok) {
+                
+                emailjs
+                  .sendForm(
+                    'YOUR_SERVICE_ID',
+                    'YOUR_TEMPLATE_ID',
+                    form,
+                    'YOUR_PUBLIC_KEY'
+                  )
+                  .then(
+                    () => {
                       alert('Thank you! Your message has been sent to InfluenceNest.')
                       form.reset()
-                    } else {
+                    },
+                    (error) => {
+                      console.error('EmailJS error:', error)
                       alert('Could not send message. Please try again in a bit.')
                     }
-                  })
-                  .catch(() => {
-                    alert('Could not send message. Please try again in a bit.')
-                  })
+                  )
               }}
             >
               <div className="field">
@@ -324,7 +319,6 @@ function App() {
                   id="name"
                   name="name"
                   type="text"
-                  placeholder="Abhay / Brand manager / Founder"
                   required
                 />
               </div>
@@ -334,7 +328,6 @@ function App() {
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="you@company.com"
                   required
                 />
               </div>
@@ -344,12 +337,10 @@ function App() {
                   id="company"
                   name="company"
                   type="text"
-                  placeholder="InfluenceNest, D2C skincare, SaaS, local cafe…"
                   required
                 />
               </div>
               <div className="field">
-                <label htmlFor="budget">Approx. monthly budget</label>
                 <select id="budget" name="budget" required>
                   <option value="">Select a range</option>
                   <option value="50k-1L">₹50K – ₹1L</option>
@@ -364,7 +355,6 @@ function App() {
                   id="message"
                   name="message"
                   rows={4}
-                  placeholder="Example: Launching new product in March, need creators + paid ads to drive sales in Mumbai & Delhi..."
                   required
                 />
               </div>
@@ -383,9 +373,6 @@ function App() {
       <footer className="footer">
         <span>
           © {new Date().getFullYear()} InfluenceNest. All rights reserved.
-        </span>
-        <span className="footer-right">
-          Built with a little bit of weird &amp; a lot of strategy.
         </span>
       </footer>
     </div>
