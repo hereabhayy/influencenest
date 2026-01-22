@@ -367,6 +367,12 @@ function App() {
               </p>
             </form>
           </div>
+          <div className="contact-info">
+            <p>
+              <a href="tel:+917224851972">+91 7224851972</a> |{' '}
+              <a href="mailto:influencenest7@gmail.com">influencenest7@gmail.com</a>
+            </p>
+          </div>
         </section>
       </main>
 
