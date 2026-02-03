@@ -1,388 +1,463 @@
-import { useEffect, useRef } from 'react'
-import { gsap } from 'gsap'
-import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import emailjs from '@emailjs/browser'
-import './App.css'
+import React from "react";
 
-function App() {
-  const pageRef = useRef<HTMLDivElement | null>(null)
+const sections = [
+  "home",
+  "work",
+  "services",
+  "about",
+  "testimonials",
+  "contact"
+] as const;
 
-  useEffect(() => {
-    gsap.registerPlugin(ScrollTrigger)
-    if (!pageRef.current) return
+type SectionId = (typeof sections)[number];
 
-    const ctx = gsap.context(() => {
-      gsap.from('.logo-mark', {
-        y: -20,
-        opacity: 0,
-        duration: 0.9,
-        ease: 'elastic.out(1, 0.7)',
-      })
+const scrollTo = (id: SectionId) => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+};
 
-      gsap.from('.hero-left h1, .hero-sub, .hero-cta, .metrics-row', {
-        y: 24,
-        opacity: 0,
-        duration: 1,
-        ease: 'power3.out',
-        stagger: 0.12,
-        delay: 0.2,
-      })
+const WHATSAPP_NUMBER = "917224851972"; // full WhatsApp number (country code + number, no + or 0)
 
-      gsap.from('.floating-orbit', {
-        scale: 0.7,
-        rotate: -14,
-        opacity: 0,
-        duration: 1.3,
-        ease: 'power3.out',
-        delay: 0.3,
-      })
+// Fire events to Meta Pixel (fbq) and Google Analytics (gtag) if they exist.
+const trackEvent = (name: string, params?: Record<string, unknown>) => {
+  const w = window as unknown as {
+    fbq?: (...args: unknown[]) => void;
+    gtag?: (...args: unknown[]) => void;
+  };
 
-      gsap.to('.orbit-ring.outer', {
-        rotation: 360,
-        repeat: -1,
-        ease: 'none',
-        duration: 38,
-      })
-      gsap.to('.orbit-ring.mid', {
-        rotation: -360,
-        repeat: -1,
-        ease: 'none',
-        duration: 26,
-      })
-      gsap.to('.orbit-ring.inner', {
-        rotation: 360,
-        repeat: -1,
-        ease: 'none',
-        duration: 18,
-      })
+  if (w.fbq) {
+    w.fbq("trackCustom", name, params || {});
+  }
+  if (w.gtag) {
+    w.gtag("event", name, params || {});
+  }
+};
 
-      gsap.to('.orbit-tag', {
-        y: -6,
-        repeat: -1,
-        yoyo: true,
-        ease: 'sine.inOut',
-        duration: 2.2,
-        stagger: 0.25,
-      })
+const App: React.FC = () => {
+  const [name, setName] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [projectType, setProjectType] = React.useState("Brand & Strategy");
+  const [message, setMessage] = React.useState("");
+  const [hasStartedForm, setHasStartedForm] = React.useState(false);
+  const contactSectionRef = React.useRef<HTMLElement | null>(null);
 
-      gsap.from('.section.services .service-card', {
-        scrollTrigger: {
-          trigger: '.section.services',
-          start: 'top 80%',
-        },
-        y: 32,
-        opacity: 0,
-        duration: 0.9,
-        stagger: 0.15,
-        ease: 'power3.out',
-      })
+  // Reveal-on-scroll animation
+  React.useEffect(() => {
+    const elements = Array.from(
+      document.querySelectorAll<HTMLElement>(".reveal")
+    );
+    if (!("IntersectionObserver" in window) || elements.length === 0) return;
 
-      gsap.from('.section.why-us .why-point', {
-        scrollTrigger: {
-          trigger: '.section.why-us',
-          start: 'top 80%',
-        },
-        y: 32,
-        opacity: 0,
-        duration: 0.9,
-        stagger: 0.12,
-        ease: 'power3.out',
-      })
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("reveal-visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.18 }
+    );
 
-      gsap.from('.section.contact .contact-layout', {
-        scrollTrigger: {
-          trigger: '.section.contact',
-          start: 'top 80%',
-        },
-        y: 40,
-        opacity: 0,
-        duration: 0.9,
-        ease: 'power3.out',
-      })
-    }, pageRef)
+    elements.forEach((el) => observer.observe(el));
 
-    return () => ctx.revert()
-  }, [])
+    return () => observer.disconnect();
+  }, []);
+
+  // Track when contact section comes into view
+  React.useEffect(() => {
+    const section = contactSectionRef.current;
+    if (!section || !("IntersectionObserver" in window)) return;
+
+    let fired = false;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !fired) {
+            fired = true;
+            trackEvent("contact_section_view");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.3 }
+    );
+
+    observer.observe(section);
+
+    return () => observer.disconnect();
+  }, []);
+
+  const handleContactSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const textLines = [
+      "New InfluenceNest inquiry 🚀",
+      "",
+      `Name: ${name || "N/A"}`,
+      `Email: ${email || "N/A"}`,
+      `Project Type: ${projectType || "N/A"}`,
+      "",
+      "Message:",
+      message || "N/A"
+    ];
+
+    const text = encodeURIComponent(textLines.join("\n"));
+    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${text}`;
+
+    trackEvent("whatsapp_click", {
+      name,
+      email,
+      projectType
+    });
+
+    window.open(url, "_blank");
+  };
 
   return (
-    <div className="page" ref={pageRef}>
+    <div className="page">
       <header className="nav">
         <div className="nav-left">
-          <div className="logo-mark">IN</div>
-          <div className="brand">
-            <span className="brand-name">InfluenceNest</span>
-            <span className="brand-tag">Amplify. Align. Accelerate.</span>
-          </div>
+          <span className="logo-mark">( WE ARE )</span>
+          <span className="logo-main">INFLUENCENEST</span>
         </div>
         <nav className="nav-links">
-          <a href="#services">Services</a>
-          <a href="#why-us">Why us</a>
-          <a href="#contact" className="pill">
-            Let&apos;s talk
-          </a>
+          {sections.map((id) => (
+            <button key={id} onClick={() => scrollTo(id)} className="nav-link">
+              {id === "home"
+                ? "Home"
+                : id === "work"
+                ? "Work"
+                : id === "services"
+                ? "Services"
+                : id === "about"
+                ? "About"
+                : id === "testimonials"
+                ? "Testimonials"
+                : "Contact"}
+            </button>
+          ))}
         </nav>
+        <button
+          className="pill-btn"
+          onClick={() => scrollTo("contact")}
+        >
+          Talk to us
+        </button>
       </header>
 
       <main>
-        <section className="hero" id="top">
-          <div className="hero-left">
-            <p className="eyebrow">Influencer, brand &amp; product growth lab</p>
+        {/* HERO */}
+        <section id="home" className="hero reveal">
+          <div className="hero-text">
+            <p className="eyebrow">est. in 2026</p>
+            <p className="tagline">( WE ARE INFLUENCENEST )</p>
             <h1>
-              We turn <span className="weird-word">attention</span> into
-              <span className="highlighted"> predictable revenue.</span>
+              MOVING <span className="outline">BRANDS</span>
+              <br />
+              FORWARD.
             </h1>
             <p className="hero-sub">
-              InfluenceNest plans, designs and runs campaigns that make your brand
-              impossible to ignore – from creator collabs to full-funnel performance
-              marketing.
+              A digital marketing studio crafting motion‑driven campaigns,
+              social narratives, and performance funnels that actually convert.
             </p>
-            <div className="hero-cta">
-              <a href="#contact" className="primary-btn">
-                Book a free strategy call
-              </a>
-              <span className="small-note">
-                Get a custom growth map in under 24 hours.
+            <div className="hero-ctas">
+              <button
+                className="btn primary"
+                onClick={() => scrollTo("work")}
+              >
+                View Projects
+              </button>
+              <button
+                className="btn ghost"
+                onClick={() => scrollTo("contact")}
+              >
+                Reach out
+              </button>
+            </div>
+          </div>
+          <div className="hero-orbit">
+            <div className="orb orb-outer" />
+            <div className="orb orb-middle" />
+            <div className="orb orb-inner" />
+            <div className="orb-label">Digital Marketing • Social • Performance</div>
+          </div>
+        </section>
+
+        {/* FEATURED WORK */}
+        <section id="work" className="section reveal">
+          <header className="section-header">
+            <p className="eyebrow">( Featured Work )</p>
+            <div className="section-header-row">
+              <h2>Campaigns that earned attention.</h2>
+              <button className="chip">All Work</button>
+            </div>
+          </header>
+          <div className="work-grid">
+            <article className="card work-card">
+              <div className="work-tag-row">
+                <span className="pill small">Social Launch</span>
+                <span className="pill small muted">Meta • Reels • UGC</span>
+              </div>
+              <h3>Creator‑led launch for a D2C brand</h3>
+              <p>
+                Strategy, production and media buying for a performance-first
+                launch that turned creators into the main acquisition engine.
+              </p>
+            </article>
+            <article className="card work-card">
+              <div className="work-tag-row">
+                <span className="pill small">Always‑On</span>
+                <span className="pill small muted">TikTok • Shorts</span>
+              </div>
+              <h3>Full‑funnel content for SaaS</h3>
+              <p>
+                Weekly narrative series, live experiments and dark ads that
+                blend personality with measurable pipeline impact.
+              </p>
+            </article>
+            <article className="card work-card">
+              <div className="work-tag-row">
+                <span className="pill small">Brand Film</span>
+                <span className="pill small muted">YouTube • CTV</span>
+              </div>
+              <h3>Founder‑story built for performance</h3>
+              <p>
+                A cinematic brand piece cut into a modular system of hooks,
+                edits and formats for every channel.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        {/* SERVICES */}
+        <section id="services" className="section reveal">
+          <header className="section-header">
+            <p className="eyebrow">( Services & Expertise )</p>
+            <h2>Digital growth, built around motion.</h2>
+          </header>
+          <div className="services-grid">
+            <div className="card service-card">
+              <h3>Brand & Content Systems</h3>
+              <ul>
+                <li>Positioning & narrative for social‑first brands</li>
+                <li>Visual systems for short‑form and stories</li>
+                <li>Launch playbooks & content calendars</li>
+              </ul>
+            </div>
+            <div className="card service-card">
+              <h3>Paid Social & Funnels</h3>
+              <ul>
+                <li>Meta, TikTok & YouTube performance strategy</li>
+                <li>Creative testing frameworks</li>
+                <li>Landing pages & conversion journeys</li>
+              </ul>
+            </div>
+            <div className="card service-card">
+              <h3>Creator & Influencer Ops</h3>
+              <ul>
+                <li>Influencer sourcing and management</li>
+                <li>UGC scripts & remote direction</li>
+                <li>Evergreen content libraries</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        {/* ABOUT */}
+        <section id="about" className="section about reveal">
+          <header className="section-header">
+            <p className="eyebrow">( About us )</p>
+            <h2>Built for ambitious brands & creators.</h2>
+          </header>
+          <div className="about-grid">
+            <div className="about-metrics">
+              <div>
+                <h3>5+</h3>
+                <p>Years in digital marketing</p>
+              </div>
+              <div>
+                <h3>50+</h3>
+                <p>Campaigns shipped</p>
+              </div>
+              <div>
+                <h3>Across</h3>
+                <p>E‑com, SaaS & creators</p>
+              </div>
+            </div>
+            <div className="about-copy card">
+              <h3>InfluenceNest — Digital Marketing Studio</h3>
+              <p>
+                InfluenceNest exists to bring clarity and momentum to your brand
+                in a noisy, fast‑moving digital world. We design systems that
+                connect creative, content and performance into one motion‑driven
+                engine.
+              </p>
+              <p>
+                From first message to final purchase, every touchpoint is
+                intentional. We partner closely with founders and marketing
+                teams who care about long‑term brand equity as much as this
+                month&apos;s numbers.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* TESTIMONIALS */}
+        <section id="testimonials" className="section reveal">
+          <header className="section-header">
+            <p className="eyebrow">( Testimonials )</p>
+            <h2>Don&apos;t take our word for it.</h2>
+          </header>
+          <div className="testimonials-grid">
+            <div className="card quote">
+              <p>
+                &quot;They didn&apos;t just run ads — they helped us understand
+                our story and turned it into a full content system that keeps
+                paying off.&quot;
+              </p>
+              <span className="quote-meta">
+                — Founder, D2C brand
               </span>
             </div>
-            <div className="metrics-row">
-              <div className="metric-card">
-                <span className="metric-label">Avg. ROAS</span>
-                <span className="metric-value">4.7x</span>
-              </div>
-              <div className="metric-card">
-                <span className="metric-label">Creators activated</span>
-                <span className="metric-value">300+</span>
-              </div>
-              <div className="metric-card">
-                <span className="metric-label">Industries served</span>
-                <span className="metric-value">D2C · SaaS · Local</span>
-              </div>
-            </div>
-          </div>
-          <div className="hero-right">
-            <div className="floating-orbit">
-              <div className="orbit-ring outer"></div>
-              <div className="orbit-ring mid"></div>
-              <div className="orbit-ring inner"></div>
-              <div className="orbit-core">
-                <span>Influence</span>
-                <span>Nest</span>
-              </div>
-              <div className="orbit-tag orbit-tag-top">Creators</div>
-              <div className="orbit-tag orbit-tag-right">Brands</div>
-              <div className="orbit-tag orbit-tag-bottom">Campaigns</div>
-              <div className="orbit-tag orbit-tag-left">Strategy</div>
-            </div>
-            <div className="hero-note-card">
+            <div className="card quote">
               <p>
-                &ldquo;They made our product launch trend in 3 cities in 48 hours.&rdquo;
+                &quot;Our social finally feels consistent. The team is fast,
+                proactive, and great at collaborating with our in‑house
+                creatives.&quot;
               </p>
-              <span className="hero-note-meta">Consumer brand, 2025 launch</span>
+              <span className="quote-meta">
+                — Marketing Lead, SaaS
+              </span>
+            </div>
+            <div className="card quote">
+              <p>
+                &quot;From the first call, they understood the goal and
+                delivered beyond the brief. Clear communication, sharp creative,
+                and performance we can measure.&quot;
+              </p>
+              <span className="quote-meta">
+                — Creator & entrepreneur
+              </span>
             </div>
           </div>
         </section>
 
-        <section id="services" className="section services">
-          <div className="section-header">
-            <h2>What we execute for you</h2>
-            <p>
-              Full-funnel, done-for-you growth operations – from idea to live campaigns
-              and reporting.
-            </p>
-          </div>
-          <div className="service-grid">
-            <article className="service-card">
-              <h3>Influencer &amp; creator campaigns</h3>
+        {/* CONTACT (WhatsApp) */}
+        <section
+          id="contact"
+          className="section contact reveal"
+          ref={contactSectionRef}
+        >
+          <header className="section-header">
+            <p className="eyebrow">( Seriously )</p>
+            <h2>Let&apos;s cut the noise.</h2>
+          </header>
+          <div className="contact-grid">
+            <div className="contact-left">
+              <h3>Talk to us on WhatsApp.</h3>
               <p>
-                Strategy, shortlisting, outreach, negotiation and reporting – we manage
-                creators like a CRM.
+                No long forms, no waiting for someone to &quot;get back to
+                you&quot;. Share a few details and we&apos;ll continue the
+                conversation directly in WhatsApp.
               </p>
-              <ul>
-                <li>Creator mapping &amp; vetting</li>
-                <li>Briefs, concepts &amp; scripts</li>
-                <li>Performance tracking dashboard</li>
-              </ul>
-            </article>
-            <article className="service-card">
-              <h3>Paid social &amp; performance</h3>
-              <p>
-                We plug your content into high-performing ad systems that are optimized
-                everyday.
-              </p>
-              <ul>
-                <li>Meta, Google, TikTok, YouTube Ads</li>
-                <li>Creative testing &amp; scaling frameworks</li>
-                <li>Weekly growth experiments</li>
-              </ul>
-            </article>
-            <article className="service-card">
-              <h3>Brand &amp; launch strategy</h3>
-              <p>
-                Positioning, messaging and launch maps designed to make you stand out in
-                a crowded feed.
-              </p>
-              <ul>
-                <li>Brand narrative &amp; hooks</li>
-                <li>Go-to-market launch sprints</li>
-                <li>Always-on content systems</li>
-              </ul>
-            </article>
-          </div>
-        </section>
-
-        <section id="why-us" className="section why-us">
-          <div className="section-header">
-            <h2>Why InfluenceNest</h2>
-            <p>
-              Not just &ldquo;posts&rdquo; – we architect campaigns with business
-              outcomes in mind.
-            </p>
-          </div>
-          <div className="why-grid">
-            <div className="why-point">
-              <h3>Strategy first</h3>
-              <p>
-                Every idea is tied to a revenue, awareness or retention target – no
-                vanity metrics.
-              </p>
-            </div>
-            <div className="why-point">
-              <h3>Weird, scroll-stopping ideas</h3>
-              <p>
-                Thumb-stopping, slightly strange creative that still feels on brand and
-                high-quality.
-              </p>
-            </div>
-            <div className="why-point">
-              <h3>End-to-end execution</h3>
-              <p>
-                We handle planning, creators, media buying, reporting and iteration in
-                one loop.
-              </p>
-            </div>
-            <div className="why-point">
-              <h3>Transparent reporting</h3>
-              <p>
-                Clear dashboards and weekly summaries in your inbox – no confusing PDFs.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section id="contact" className="section contact">
-          <div className="contact-layout">
-            <div className="contact-copy">
-              <h2>Tell us what you want to promote</h2>
-              <p>
-                Share a bit about your brand, product or upcoming launch. We&apos;ll reply
-                with 2–3 campaign directions and ballpark budgets.
-              </p>
-              <div className="contact-pill-list">
-                <span>Product launch</span>
-                <span>Always-on marketing</span>
-                <span>Influencer program</span>
-                <span>Something custom</span>
-              </div>
               <p className="contact-note">
-                You&apos;ll get an email directly from our team – no bots, no spam.
+                Once you hit send, WhatsApp will open with your message
+                pre‑filled. You can edit it before sending.
               </p>
             </div>
-            <form
-              className="contact-form"
-              onSubmit={(e) => {
-                e.preventDefault()
-                const form = e.currentTarget
-                const formData = new FormData(form)
-                
-                emailjs
-                  .sendForm(
-                    'YOUR_SERVICE_ID',
-                    'YOUR_TEMPLATE_ID',
-                    form,
-                    'YOUR_PUBLIC_KEY'
-                  )
-                  .then(
-                    () => {
-                      alert('Thank you! Your message has been sent to InfluenceNest.')
-                      form.reset()
-                    },
-                    (error) => {
-                      console.error('EmailJS error:', error)
-                      alert('Could not send message. Please try again in a bit.')
-                    }
-                  )
-              }}
-            >
-              <div className="field">
-                <label htmlFor="name">Your name</label>
-                <input
-                  id="name"
-                  name="name"
-                  type="text"
-                  required
-                />
+            <form className="card contact-form" onSubmit={handleContactSubmit}>
+              <div className="field-row">
+                <div className="field">
+                  <label htmlFor="name">Name</label>
+                  <input
+                    id="name"
+                    type="text"
+                    placeholder="Your name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    onFocus={() => {
+                      if (!hasStartedForm) {
+                        setHasStartedForm(true);
+                        trackEvent("contact_form_started");
+                      }
+                    }}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="email">Email</label>
+                  <input
+                    id="email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
               </div>
               <div className="field">
-                <label htmlFor="email">Work email</label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  required
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="company">Brand / Company</label>
-                <input
-                  id="company"
-                  name="company"
-                  type="text"
-                  required
-                />
-              </div>
-              <div className="field">
-                <select id="budget" name="budget" required>
-                  <option value="">Select a range</option>
-                  <option value="50k-1L">₹50K – ₹1L</option>
-                  <option value="1L-3L">₹1L – ₹3L</option>
-                  <option value="3L-5L">₹3L – ₹5L</option>
-                  <option value="5L-plus">₹5L+</option>
+                <label htmlFor="projectType">Project type</label>
+                <select
+                  id="projectType"
+                  value={projectType}
+                  onChange={(e) => setProjectType(e.target.value)}
+                >
+                  <option>Brand & Strategy</option>
+                  <option>Paid Social & Funnels</option>
+                  <option>Creator / Influencer</option>
+                  <option>Full Funnel Support</option>
+                  <option>Other</option>
                 </select>
               </div>
               <div className="field">
-                <label htmlFor="message">What are you trying to achieve?</label>
+                <label htmlFor="message">Tell us about your brand</label>
                 <textarea
                   id="message"
-                  name="message"
                   rows={4}
-                  required
+                  placeholder="Drop links, context and goals — the more specific, the better."
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
                 />
               </div>
-              <button type="submit" className="primary-btn full">
-                Send to InfluenceNest
+              <button type="submit" className="btn primary full-width">
+                Send via WhatsApp
               </button>
-              <p className="form-footnote">
-                By submitting, you agree to be contacted about strategy ideas and
-                services. We respect your inbox.
-              </p>
             </form>
-          </div>
-          <div className="contact-info">
-            <p>
-              <a href="tel:+917224851972">+91 7224851972</a> |{' '}
-              <a href="mailto:influencenest7@gmail.com">influencenest7@gmail.com</a>
-            </p>
           </div>
         </section>
       </main>
 
       <footer className="footer">
-        <span>
-          © {new Date().getFullYear()} InfluenceNest. All rights reserved.
-        </span>
+        <div className="footer-top">
+          <div>
+            <p className="eyebrow">InfluenceNest — Digital Marketing Studio</p>
+            <p className="footer-location">Based in India — Available worldwide</p>
+          </div>
+          <div className="footer-actions">
+            <button
+              className="pill-btn"
+              onClick={() => scrollTo("contact")}
+            >
+              Book a call
+            </button>
+          </div>
+        </div>
+        <div className="footer-bottom">
+          <span>© {new Date().getFullYear()} InfluenceNest. All rights reserved.</span>
+          <div className="footer-links">
+            <a href="#home">Home</a>
+            <a href="#work">Work</a>
+            <a href="#services">Services</a>
+            <a href="#about">About</a>
+          </div>
+        </div>
       </footer>
     </div>
-  )
-}
+  );
+};
 
-export default App
+export default App;
+
